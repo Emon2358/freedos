@@ -1,0 +1,71 @@
+name: Release FreeDOS HDI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup build environment
+        run: |
+          brew update
+          brew install make  # Adjust if additional dependencies are needed
+
+      - name: Build FreeDOS
+        run: |
+          # Replace with your actual FreeDOS build commands.
+          make
+
+      - name: Prepare release folder
+        run: |
+          mkdir -p release
+          # Copy your built FreeDOS files to a folder. Update the source path as needed.
+          cp -R path/to/your/built/freedos release/freedos_files
+
+      - name: Create HDI Image using hdiutil
+        run: |
+          # Create an HDI image from the released files. Adjust the format and other parameters as needed.
+          hdiutil create -format UDZO -srcfolder release/freedos_files -volname "FreeDOS" release/freedos.hdi
+
+      - name: Archive HDI artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: freedos-hdi
+          path: release/freedos.hdi
+
+  release:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: freedos-hdi
+          path: release
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release/freedos.hdi
+          asset_name: freedos.hdi
+          asset_content_type: application/x-apple-diskimage
